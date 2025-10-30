@@ -359,39 +359,33 @@ async function handleLogin(event) {
   // 先把使用者名稱記起來供前端顯示
   if (username) localStorage.setItem('username', username);
 
-  // 假設後端處理登入
-  const response = await fetch('/', {
+  // 將 fetch 目標指向後端處理登入的路由 /page_login
+  const response = await fetch('/page_login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
-  }).catch(() => ({ ok: true })); // 為了演示，假設 fetch 成功
+  }).catch(error => {
+    console.error('Fetch error:', error);
+    alert('登入請求失敗，請檢查伺服器狀態。');
+    return { ok: false, json: async () => ({ status: 'error', message: '網路錯誤' }) };
+  });
 
-  // 依你後端邏輯處理導向
-  if (response.ok) {
-    // 登入成功後刷新使用者顯示
-    (function showUsername() {
-      // 登入成功後刷新顯示，此處為簡化邏輯，實際應重新執行 showUsername()
-      const username = localStorage.getItem('username');
-      const userDisplay = document.getElementById('user-display');
-      const loginForm = document.getElementById('login-form');
+  // 必須先解析 JSON 響應
+  const result = await response.json();
 
-      if (username && userDisplay && loginForm) {
-        userDisplay.innerHTML = `
-          <span>哈囉, **${username}**</span>
-          <button id="logout-btn" style="margin-left: 10px; padding: 5px 10px; border: 1px solid #ccc; background: #f0f0f0; cursor: pointer; border-radius: 4px;">登出</button>
-        `;
-        userDisplay.style.display = 'block';
-        loginForm.style.display = 'none';
-
-        document.getElementById('logout-btn').addEventListener('click', () => {
-          localStorage.removeItem('username');
-          window.location.reload(); // 簡單起見，直接重載頁面
-        });
-      }
-    })();
-    // location.href = '/'; // 例如登入成功返回首頁
+  // 依後端邏輯處理導向
+  if (result.status === 'success') {
+    // 登入成功時，實際進行頁面跳轉到後端提供的 URL (/shopping)
+    if (result.redirect_url) {
+        window.location.href = result.redirect_url;
+    } else {
+        // 如果沒有跳轉 URL，則使用 showUsername 更新 DOM (主要用於測試或無導向頁面)
+        showUsername(); 
+    }
   } else {
-    alert('登入失敗');
+    // 登入失敗時
+    localStorage.removeItem('username'); 
+    alert(result.message);
   }
 }
 
