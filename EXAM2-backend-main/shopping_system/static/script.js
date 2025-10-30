@@ -15,6 +15,38 @@ const products = [
 
 (function showUsername() {
 // === 顯示登入使用者於導行列，補齊程式碼 ===
+  const username = localStorage.getItem('username');
+  const nav = document.querySelector('nav') || document.createElement('nav');
+  nav.style.display = 'flex';
+  nav.style.justifyContent = 'space-between';
+  nav.style.alignItems = 'center';
+  nav.style.padding = '10px 16px';
+  nav.style.background = '#f8fafc';
+  nav.style.borderBottom = '1px solid #e2e8f0';
+  nav.style.fontFamily = 'sans-serif';
+  nav.style.position = 'sticky';
+  nav.style.top = '0';
+  nav.style.zIndex = '30';
+
+  const left = document.createElement('div');
+  left.innerHTML = `👤 目前登入使用者：<strong>${username || '未登入'}</strong>`;
+
+  const right = document.createElement('button');
+  right.textContent = '登出';
+  right.style.background = '#ef4444';
+  right.style.color = '#fff';
+  right.style.border = 'none';
+  right.style.padding = '6px 12px';
+  right.style.borderRadius = '6px';
+  right.style.cursor = 'pointer';
+  right.addEventListener('click', () => {
+    localStorage.removeItem('username');
+    window.location.href = './login.html'; // ← 改成你的登入頁路徑
+  });
+
+  nav.appendChild(left);
+  nav.appendChild(right);
+  document.body.prepend(nav);
 })();
 
 
@@ -78,6 +110,8 @@ function display_products(products_to_display) {
     const state = rowState.get(key);
     const price = Number(p.price) || 0;
     const total = price * (state.qty || 0);
+    const decDisabled = (!state.checked || state.qty <= 0) ? 'disabled' : '';
+    const incDisabled = (!state.checked) ? 'disabled' : '';
 
     const product_info = `
       <tr data-key="${key}">
@@ -89,9 +123,9 @@ function display_products(products_to_display) {
         <td>${p.category}</td>
         <td>
           <div class="qty" style="display:inline-flex;align-items:center;gap:6px;">
-            <button type="button" class="btn-dec" style="padding:2px 8px;">-</button>
-            <input type="number" class="qty-input" min="0" value="${state.qty}" style="width:64px;">
-            <button type="button" class="btn-inc" style="padding:2px 8px;">+</button>
+            <button type="button" class="btn-dec" ${decDisabled} style="padding:2px 8px;">-</button>
+            <input type="number" class="qty-input" min="0" value="${state.qty}" style="width:64px;" ${!state.checked ? 'disabled' : ''}>
+            <button type="button" class="btn-inc" ${incDisabled} style="padding:2px 8px;">+</button>
           </div>
         </td>
         <td class="row-total">${total.toLocaleString()}</td>
@@ -170,10 +204,31 @@ function apply_filter(products_to_filter) {
     // 列 checkbox
     if (e.target.classList.contains('row-check')) {
       st.checked = e.target.checked;
+
+      const input = tr.querySelector('.qty-input');
+      const btnDec = tr.querySelector('.btn-dec');
+      const btnInc = tr.querySelector('.btn-inc');
+
+      if (st.checked) {
+        st.qty = 1;
+        input.value = 1;
+        btnDec.disabled = true;
+        btnInc.disabled = false;
+        input.disabled = false;
+      } else {
+        st.qty = 0;
+        input.value = 0;
+        btnDec.disabled = true;
+        btnInc.disabled = true;
+        input.disabled = true;
+      }
+
       rowState.set(key, st);
+      updateRowTotal(tr);
       refreshSummary();
       return;
     }
+
 
     // 減少數量
     if (e.target.classList.contains('btn-dec')) {
@@ -253,6 +308,18 @@ function refreshSummary() {
       selectedCount += 1;
       totalQty += qty;
       totalPrice += qty * price;
+    const btnDec = tr.querySelector('.btn-dec');
+    const btnInc = tr.querySelector('.btn-inc');
+    const input = tr.querySelector('.qty-input');
+    if (chk.checked) {
+      btnInc.disabled = false;
+      input.disabled = false;
+      btnDec.disabled = (qty <= 1);
+    } else {
+      btnInc.disabled = true;
+      btnDec.disabled = true;
+      input.disabled = true;
+    }
     }
   });
 
