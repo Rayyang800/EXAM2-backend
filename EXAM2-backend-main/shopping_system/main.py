@@ -1,45 +1,60 @@
-from flask import Flask, request, jsonify, render_template, session, redirect, url_for, flash
-from datetime import datetime
-import sqlite3
-import logging
-import re 
-import os
-
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
+import sqlite3, logging, re, os
 
 app = Flask(__name__)
 app.secret_key = "secret-key"
 
-
-# 路徑修改
+# --------------------------
+# 取得資料庫連線
+# --------------------------
 def get_db_connection():
-    conn = sqlite3.connect('shopping_data.db')
-    if not os.path.exists('shopping_data.db'):
-        logging.error(f"Database file not found at {'shopping_data.db'}")
+    db_path = 'shopping_data.db'
+    if not os.path.exists(db_path):
+        logging.error(f"❌ Database file not found at {db_path}")
         return None
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    return conn
 
-# 補齊空缺程式碼
+
+# --------------------------
+# 首頁導向登入頁
+# --------------------------
+@app.route('/')
+def home():
+    return redirect(url_for('page_login'))
+
+
+# --------------------------
+# 登入頁面
+# --------------------------
 @app.route('/page_login', methods=['GET', 'POST'])
 def page_login():
-    if request.method == 'POST':
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
+    if request.method == 'POST':
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_table WHERE username = ? AND password = ?", (username, password))
-        user = cursor.fetchone()
-        conn.close()
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({"status": "error", "message": "資料庫連線失敗"}), 500
 
-        if user:
-            session['username'] = username
-            return jsonify({"status": "success", "message": "登入成功"})
-        else:
-            return jsonify({"status": "error", "message": "帳號或密碼錯誤"})
-    return render_template('page_login.html')
-    
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            session['username'] = username
+            # *** 修正：登入成功後，回傳跳轉的 URL ***
+            return jsonify({"status": "success", "message": "登入成功", "redirect_url": url_for('shopping')})
+        else:
+            return jsonify({"status": "error", "message": "帳號或密碼錯誤"})
+    return render_template('page_login_.html')
+
+# --------------------------
+# 註冊頁面
+# --------------------------
 @app.route('/page_register', methods=['GET', 'POST'])
 def page_register():
     if request.method == 'POST':
@@ -57,64 +72,49 @@ def page_register():
             return jsonify({"status": "error", "message": "密碼必須超過8個字元且包含英文大小寫，重新輸入"})
 
         conn = get_db_connection()
+        if conn is None:
+            return jsonify({"status": "error", "message": "資料庫連線失敗"}), 500
+
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_table WHERE username = ?", (username,))
+        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
         exist = cursor.fetchone()
 
         if exist:
-            # 若帳號已存在，更新密碼或信箱
-            cursor.execute("UPDATE user_table SET password = ?, email = ? WHERE username = ?", (password, email, username))
+            cursor.execute("UPDATE users SET password = ?, email = ? WHERE username = ?", (password, email, username))
             conn.commit()
             conn.close()
             return jsonify({"status": "info", "message": "帳號已存在，成功修改密碼或信箱"})
 
-        # 若新帳號，新增
-        cursor.execute("INSERT INTO user_table (username, password, email) VALUES (?, ?, ?)", (username, password, email))
+        cursor.execute("INSERT INTO users (username, password, email) VALUES (?, ?, ?)", (username, password, email))
         conn.commit()
         conn.close()
         return jsonify({"status": "success", "message": "註冊成功"})
     return render_template('page_register.html')
 
 
-def login_user(username, password):
-    conn = get_db_connection()
-    if conn is not None:
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-            user = cursor.fetchone()
-            if user:
-                return {"status": "success", "message": "Login successful"}
-            else:
-                return {"status": "error", "message": "Invalid username or password"}
-        except sqlite3.Error as e:
-            logging.error(f"Database query error: {e}")
-            return {"status": "error", "message": "An error occurred"}
-        finally:
-            conn.close()
-    else:
-        return {"status": "error", "message": "Database connection error"}
-
-@app.route('/page_login' , methods=['GET', 'POST'])
-def page_login():
-    try:
-        if request.method == 'POST':
-            data = request.get_json()
-            username = data.get('username')
-            password = data.get('password')
-            result = login_user(username, password)
-            if result["status"] == "success":
-                session['username'] = username
-            return jsonify(result)
-        return render_template('page_login.html')
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# 補齊剩餘副程式
+# --------------------------
+# 購物頁面
+# --------------------------
+@app.route('/shopping')
+def shopping():
+    if 'username' not in session:
+        return redirect(url_for('page_login'))
+    return render_template('index.html', username=session['username'])
 
 
-# 補齊空缺程式碼
+
+
+# --------------------------
+# 登出
+# --------------------------
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('page_login'))
+
+
+# --------------------------
+# 主程式啟動
+# --------------------------
 if __name__ == '__main__':
-    app.run()
-
-
+    app.run(debug=True)
